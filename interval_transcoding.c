@@ -347,6 +347,7 @@ int tc_output_open(Transcoder *tc) {
             tc->video_ind = i;
             tc->avOutputVideoEncoderCtx = newStream->codec;
 
+#if 0
             if (inputStream->codec->extradata_size) {
                 log(DEBUG, "copying %d bytes extradata for stream %d\n",
                         inputStream->codec->extradata_size, i);
@@ -357,6 +358,7 @@ int tc_output_open(Transcoder *tc) {
                 newStream->codec->extradata_size = inputStream->codec->extradata_size;
                 dump_buf(newStream->codec->extradata, newStream->codec->extradata_size);
             }
+#endif
 
             newStream->codec->pix_fmt = PIX_FMT_YUV420P;
             newStream->codec->width = inputStream->codec->width;
