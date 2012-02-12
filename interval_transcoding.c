@@ -269,9 +269,8 @@ static int tc_process_frame(Transcoder *tc) {
     }
 
     if (tc->read_pkt.stream_index == tc->video_ind
-            && ((timestamp > tc->args.encode_start_arg - stock)
-                || (timestamp < tc->args.encode_end_arg)
-                || !tc->done_up_to_keyframe)
+            && (timestamp > tc->args.encode_start_arg - stock)
+            && !tc->done_up_to_keyframe
        ) {
         // start decoding from the beginning,
         // to avoid having errors 'no reference frame'
