@@ -1,0 +1,43 @@
+AC_INIT(interval_transcoding.c)
+AM_INIT_AUTOMAKE(interval_transcoding,0.0.1)
+AM_CONFIG_HEADER(config.h)
+CFLAGS="${CFLAGS} -Wall -Wextra -std=gnu99 -pthread"
+LDFLAGS="${LDFLAGS} -pthread -lavformat -lavcodec -lavfilter -lavutil"
+AC_PROG_CC
+AC_PROG_INSTALL
+
+AC_ARG_WITH([ffmpeg],
+        [AS_HELP_STRING([--with-ffmpeg],
+            [Use ffmpeg.org libs, instead of default libav.org libs])],
+        [],
+        [CFLAGS="${CFLAGS} -DLIBAV"])
+
+# Get libraries and include locations
+AC_ARG_WITH([libav-include-path],
+        [AS_HELP_STRING([--with-libav-include-path],
+            [location of the libav headers, defaults to /usr/include])],
+        [CFLAGS="${CFLAGS} -I$withval"],
+        [])
+
+AC_ARG_WITH([libav-lib-path],
+        [AS_HELP_STRING([--with-libav-lib-path],
+            [location of the libav libraries])],
+        [LDFLAGS="${LDFLAGS} -L$withval"],
+        [])
+
+AC_ARG_ENABLE([debug],
+        [AS_HELP_STRING([--enable-debug],
+            [Enable to debug])],
+        [CFLAGS="${CFLAGS} -g -ggdb -O0"],
+        [CFLAGS="${CFLAGS} -O2"])
+
+AC_PROG_MAKE_SET
+AC_HEADER_STDC
+
+AC_CHECK_LIB([avformat], [av_register_all], [], [AC_MSG_ERROR([libavformat not found])])
+AC_CHECK_LIB([avcodec],  [avcodec_open2],   [], [AC_MSG_ERROR([libavcodec not found])])
+AC_CHECK_LIB([avutil],   [av_log],          [], [AC_MSG_ERROR([libavutil not found])])
+AC_CHECK_LIB([avformat], [avformat_new_stream],           [], [AC_MSG_ERROR([libavformat too old])])
+AC_CHECK_LIB([avcodec],  [avcodec_get_context_defaults3], [], [AC_MSG_ERROR([libavcodec too old])])
+
+AC_OUTPUT(Makefile)

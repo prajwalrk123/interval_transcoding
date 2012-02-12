@@ -1,0 +1,9 @@
+package "interval_transcoding"
+version "1.0"
+purpose "Transcode video on given time interval, simply remuxing with other data."
+
+option "input"                i "Input stream/file URL" string required
+option "output"               o "Output stream server/file URL" string required
+option "v_bitrate"            b "Output video bitrate, bits per second" int default="0" optional
+option "loglevel"             l "Log level (quiet=0, debug=6)" int default="4" optional
+option "encode_start"         e "Time point to go from copying to encoding" int default="30" optional

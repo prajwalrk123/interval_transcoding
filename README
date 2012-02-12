@@ -1,0 +1,16 @@
+USAGE NOTES
+Application uses recent libav* API, so consider using as recent version as possible.
+Git master HEAD is usually ok. If stability is required, use libav.org 0.8 release branch.
+Consider using libav.org, instead of ffmpeg.org product. Libav.org developers community is more helpful and responsible.
+To make your libav* libs build right, build it using scripts/build_libav.sh.
+
+To compile application, run
+./bootstrap.sh # generate `configure` script
+./configure # probably you want to use such options as --with-libav-{include,lib}-path
+ # also, to use with ffmpeg.org libs, give --with-ffmpeg, otherwise libav.org libs are assumed
+make
+./interval_transcoding -i http://dl.dropbox.com/u/43104344/interval_transcoding.mp4 -o out.mov --encode_start 58 --v_bitrate 100000 --loglevel 6
+
+DEVELOPMENT NOTES
+Execute this when you add some command-line options
+`gengetopt -i cmdline.ggo -a args -F cmdline`
