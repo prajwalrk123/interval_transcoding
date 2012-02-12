@@ -25,6 +25,10 @@ struct transcoder {
     AVFormatContext *avOutputFmtCtx;
     AVCodecContext *avInputVideoDecoderCtx;
     AVCodecContext *avOutputVideoEncoderCtx;
+    AVPacket read_pkt;
+    int decode_ret;
+    int got_picture;
+    AVFrame *frame;
     DECLARE_ALIGNED(16, uint8_t, decbuf)[1024 * 1024];
     DECLARE_ALIGNED(16, uint8_t, encbuf)[1024 * 1024];
     int finished;
@@ -144,93 +148,88 @@ static int tc_flush_encoder(Transcoder *tc) {
     return 0;
 }
 
-static int tc_process_frame(Transcoder *tc) {
+static int tc_read_frame(Transcoder *tc) {
     int r;
-    int encbuf_size = sizeof(tc->encbuf);
-    AVPacket pkt;
-    r = av_read_frame(tc->avInputFmtCtx, &pkt);
+    r = av_read_frame(tc->avInputFmtCtx, &tc->read_pkt);
     if (r == AVERROR_EOF) {
         log(INFO, "EOF reached\n");
         tc->finished = 1;
-        return 0;
+        return 1;
     }
     if (r) {
         log(ERROR, "av_read_frame ret %d\n", r);
         return r;
     }
     log(DEBUG, "read frame of stream %d with pts %"PRId64", dts %"PRId64"\n",
-            pkt.stream_index, pkt.pts, pkt.dts);
-    log(DEBUG, "is %skeyframe\n", pkt.flags & AV_PKT_FLAG_KEY ? "" : "not ");
+            tc->read_pkt.stream_index, tc->read_pkt.pts, tc->read_pkt.dts);
+    log(DEBUG, "is %skeyframe\n", tc->read_pkt.flags & AV_PKT_FLAG_KEY ? "" : "not ");
 
-    if ((pkt.pts == AV_NOPTS_VALUE) || (pkt.dts == AV_NOPTS_VALUE)) {
+    if ((tc->read_pkt.pts == AV_NOPTS_VALUE) || (tc->read_pkt.dts == AV_NOPTS_VALUE)) {
         log(ERROR, "non-timestamped incoming packet, discarding\n");
-        //av_free_packet(&pkt);
-        //return 0;
-        pkt.pts = pkt.dts = 0;
+        //av_free_packet(&tc->read_pkt);
+        //return 1;
+        tc->read_pkt.pts = tc->read_pkt.dts = 0;
     }
-    if(pkt.pts < pkt.dts) {
+    if(tc->read_pkt.pts < tc->read_pkt.dts) {
         log(ERROR, "wrongly timestamped incoming packet: pts %"PRId64", dts %"PRId64", discarding\n",
-                pkt.pts, pkt.dts);
-        av_free_packet(&pkt);
-        return 0;
+                tc->read_pkt.pts, tc->read_pkt.dts);
+        av_free_packet(&tc->read_pkt);
+        return 1;
     }
+    return 0;
+}
 
-    int decode_ret;
-    int got_picture_ptr;
-    AVFrame *frame;
+static int tc_decode_frame(Transcoder *tc) {
+        tc->frame = avcodec_alloc_frame();
+        assert(tc->frame);
+        tc->decode_ret = avcodec_decode_video2(tc->avInputVideoDecoderCtx, tc->frame, &tc->got_picture, &tc->read_pkt);
+        if (tc->decode_ret < 0) {
+            log(WARNING, "decode fail\n");
+            av_free(tc->frame);
+        }
+        return tc->decode_ret;
+}
 
-    if (pkt.stream_index == tc->video_ind) {
-        // start decoding from the beginning,
-        // to avoid having errors 'no reference frame'
-        frame = avcodec_alloc_frame();
-        assert(frame);
-        decode_ret = avcodec_decode_video2(tc->avInputVideoDecoderCtx, frame, &got_picture_ptr, &pkt);
-    }
+static int tc_straight_write(Transcoder *tc) {
+    int r;
+    log(DEBUG, "straight writing of read frame\n");
+    tc->read_pkt.pts = av_rescale_q(tc->read_pkt.pts,
+            tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base,
+            tc->avOutputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
+    tc->read_pkt.dts = av_rescale_q(tc->read_pkt.dts,
+            tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base,
+            tc->avOutputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
+    log(DEBUG, "writing with rescaled pts %"PRId64", dts %"PRId64"\n",
+            tc->read_pkt.pts, tc->read_pkt.dts);
+    r = tc_packet_write_and_free(tc, &tc->read_pkt);
+    if (r)
+        return r;
+    return 0;
+}
 
-    double timestamp = pkt.dts * av_q2d(tc->avInputFmtCtx->streams[pkt.stream_index]->time_base);
-    log(DEBUG, "timestamp %f\n", timestamp);
-
-    if (pkt.stream_index != tc->video_ind
-            || timestamp < tc->args.encode_start_arg
-            || timestamp > tc->args.encode_end_arg   ) {
-        log(DEBUG, "straight writing of read frame\n");
-        pkt.pts = av_rescale_q(pkt.pts,
-                tc->avInputFmtCtx->streams[pkt.stream_index]->time_base,
-                tc->avOutputFmtCtx->streams[pkt.stream_index]->time_base);
-        pkt.dts = av_rescale_q(pkt.dts,
-                tc->avInputFmtCtx->streams[pkt.stream_index]->time_base,
-                tc->avOutputFmtCtx->streams[pkt.stream_index]->time_base);
-        log(DEBUG, "writing with rescaled pts %"PRId64", dts %"PRId64"\n",
-                pkt.pts, pkt.dts);
-        if (pkt.stream_index == tc->video_ind)
-            av_free(frame);
-        r = tc_packet_write_and_free(tc, &pkt);
-        if (r)
-            return r;
-        return 0;
-    }
-
+static int tc_encode_write_frame(Transcoder *tc) {
+    int r;
+    int encbuf_size = sizeof(tc->encbuf);
     log(DEBUG, "gonna encode\n");
-    if ((decode_ret < 0) || !got_picture_ptr) {
-        av_free(frame);
-        av_free_packet(&pkt);
+    if ((tc->decode_ret < 0) || !tc->got_picture) {
+        av_free_packet(&tc->read_pkt);
         log(DEBUG, "should encode, but got no picture\n");
-        return 0;
+        return 1;
     }
 
 #ifdef LIBAV
-    frame->pts = frame->pkt_pts;
+    tc->frame->pts = tc->frame->pkt_pts;
 #else
-    frame->pts = frame->best_effort_timestamp;
+    tc->frame->pts = tc->frame->best_effort_timestamp;
 #endif
-    log(DEBUG, "decoded frame pts: %"PRId64"\n", frame->pts);
-    frame->pts = av_rescale_q(frame->pts,
-            tc->avInputFmtCtx->streams[pkt.stream_index]->time_base,
+    log(DEBUG, "decoded frame pts: %"PRId64"\n", tc->frame->pts);
+    tc->frame->pts = av_rescale_q(tc->frame->pts,
+            tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base,
             tc->avInputVideoDecoderCtx->time_base);
-    log(DEBUG, "frame pts, rescaled after decoding: %"PRId64"\n", frame->pts);
+    log(DEBUG, "frame pts, rescaled after decoding: %"PRId64"\n", tc->frame->pts);
 
-    frame->pict_type = 0;
-    r = avcodec_encode_video(tc->avOutputVideoEncoderCtx, tc->encbuf, encbuf_size, frame);
+    tc->frame->pict_type = 0;
+    r = avcodec_encode_video(tc->avOutputVideoEncoderCtx, tc->encbuf, encbuf_size, tc->frame);
     if (r < 0) {
         log(ERROR, "encode video fail\n");
         return r;
@@ -256,8 +255,42 @@ static int tc_process_frame(Transcoder *tc) {
         if (r)
             return r;
     }
-    av_free(frame);
-    av_free_packet(&pkt);
+    av_free(tc->frame);
+    av_free_packet(&tc->read_pkt);
+    return 0;
+}
+
+static int tc_process_frame(Transcoder *tc) {
+    int r;
+
+    r = tc_read_frame(tc);
+    if (r > 0) return 0;
+    if (r < 0) return r;
+
+    if (tc->read_pkt.stream_index == tc->video_ind) {
+        // start decoding from the beginning,
+        // to avoid having errors 'no reference frame'
+        tc_decode_frame(tc);
+    }
+
+    double timestamp = tc->read_pkt.dts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
+    log(DEBUG, "timestamp %f\n", timestamp);
+
+    if (tc->read_pkt.stream_index != tc->video_ind
+            || timestamp < tc->args.encode_start_arg
+            || timestamp > tc->args.encode_end_arg   ) {
+        r = tc_straight_write(tc);
+        if (tc->read_pkt.stream_index == tc->video_ind)
+            av_free(tc->frame);
+        if (r > 0) return 0;
+        if (r < 0) return r;
+        return 0;
+    }
+
+    r = tc_encode_write_frame(tc);
+    if (r > 0) return 0;
+    if (r < 0) return r;
+
     return 0;
 }
 
