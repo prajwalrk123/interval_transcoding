@@ -29,6 +29,7 @@ struct transcoder {
     int decode_ret;
     int got_picture;
     AVFrame *frame;
+    int done_up_to_keyframe;
     DECLARE_ALIGNED(16, uint8_t, decbuf)[1024 * 1024];
     DECLARE_ALIGNED(16, uint8_t, encbuf)[1024 * 1024];
     int finished;
@@ -256,12 +257,21 @@ static int tc_process_frame(Transcoder *tc) {
     if (r > 0) return 0;
     if (r < 0) return r;
 
+
     double timestamp = tc->read_pkt.dts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
     log(DEBUG, "timestamp %f\n", timestamp);
 
+    if ((timestamp > tc->args.encode_end_arg)
+            && (tc->read_pkt.stream_index == tc->video_ind)
+            && (tc->read_pkt.flags & AV_PKT_FLAG_KEY)) {
+        log(DEBUG, "done_up_to_keyframe\n");
+        tc->done_up_to_keyframe = 1;
+    }
+
     if (tc->read_pkt.stream_index == tc->video_ind
             && ((timestamp > tc->args.encode_start_arg - stock)
-                || (timestamp < tc->args.encode_start_arg))
+                || (timestamp < tc->args.encode_end_arg)
+                || !tc->done_up_to_keyframe)
        ) {
         // start decoding from the beginning,
         // to avoid having errors 'no reference frame'
@@ -270,7 +280,7 @@ static int tc_process_frame(Transcoder *tc) {
 
     if (tc->read_pkt.stream_index != tc->video_ind
             || timestamp < tc->args.encode_start_arg
-            || timestamp > tc->args.encode_end_arg   ) {
+            || tc->done_up_to_keyframe) {
         r = tc_straight_write(tc);
         if (tc->read_pkt.stream_index == tc->video_ind)
             av_freep(&tc->frame);
