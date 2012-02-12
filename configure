@@ -3415,7 +3415,7 @@ fi
 
 # Check whether --enable-debug was given.
 if test "${enable_debug+set}" = set; then :
-  enableval=$enable_debug; CFLAGS="${CFLAGS} -g -ggdb -O0"
+  enableval=$enable_debug; CFLAGS="${CFLAGS} -g -ggdb -O0 -pg"
 else
   CFLAGS="${CFLAGS} -O2"
 fi
