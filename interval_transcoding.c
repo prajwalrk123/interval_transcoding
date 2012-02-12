@@ -364,7 +364,7 @@ int tc_output_open(Transcoder *tc) {
             newStream->codec->width = inputStream->codec->width;
             newStream->codec->height = inputStream->codec->height;
 
-            newStream->codec->time_base = inputStream->time_base;
+            newStream->codec->time_base = inputStream->codec->time_base;
             log(DEBUG, "video decoder time_base %d/%d\n",
                     inputStream->codec->time_base.num,
                     inputStream->codec->time_base.den);
