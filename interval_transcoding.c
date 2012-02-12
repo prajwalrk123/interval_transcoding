@@ -164,8 +164,9 @@ static int tc_process_frame(Transcoder *tc) {
 
     if ((pkt.pts == AV_NOPTS_VALUE) || (pkt.dts == AV_NOPTS_VALUE)) {
         log(ERROR, "non-timestamped incoming packet, discarding\n");
-        av_free_packet(&pkt);
-        return 0;
+        //av_free_packet(&pkt);
+        //return 0;
+        pkt.pts = pkt.dts = 0;
     }
     if(pkt.pts < pkt.dts) {
         log(ERROR, "wrongly timestamped incoming packet: pts %"PRId64", dts %"PRId64", discarding\n",
