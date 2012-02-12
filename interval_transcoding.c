@@ -176,6 +176,17 @@ static int tc_decode_frame(Transcoder *tc) {
             log(WARNING, "decode fail\n");
             av_freep(&tc->frame);
         }
+#ifdef LIBAV
+        tc->frame->pts = tc->frame->pkt_pts;
+#else
+        tc->frame->pts = tc->frame->best_effort_timestamp;
+#endif
+        log(DEBUG, "decoded frame pts: %"PRId64"\n", tc->frame->pts);
+        tc->frame->pts = av_rescale_q(tc->frame->pts,
+                tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base,
+                tc->avInputVideoDecoderCtx->time_base);
+        log(DEBUG, "frame pts, rescaled after decoding: %"PRId64"\n", tc->frame->pts);
+
         return tc->decode_ret;
 }
 
@@ -200,22 +211,6 @@ static int tc_encode_write_frame(Transcoder *tc) {
     int r;
     int encbuf_size = sizeof(tc->encbuf);
     log(DEBUG, "gonna encode\n");
-    if ((tc->decode_ret < 0) || !tc->got_picture) {
-        av_free_packet(&tc->read_pkt);
-        log(DEBUG, "should encode, but got no picture\n");
-        return 1;
-    }
-
-#ifdef LIBAV
-    tc->frame->pts = tc->frame->pkt_pts;
-#else
-    tc->frame->pts = tc->frame->best_effort_timestamp;
-#endif
-    log(DEBUG, "decoded frame pts: %"PRId64"\n", tc->frame->pts);
-    tc->frame->pts = av_rescale_q(tc->frame->pts,
-            tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base,
-            tc->avInputVideoDecoderCtx->time_base);
-    log(DEBUG, "frame pts, rescaled after decoding: %"PRId64"\n", tc->frame->pts);
 
     tc->frame->pict_type = 0;
     r = avcodec_encode_video(tc->avOutputVideoEncoderCtx, tc->encbuf, encbuf_size, tc->frame);
@@ -288,6 +283,11 @@ static int tc_process_frame(Transcoder *tc) {
         return 0;
     }
 
+    if ((tc->decode_ret < 0) || !tc->got_picture) {
+        av_free_packet(&tc->read_pkt);
+        log(DEBUG, "should encode, but got no picture\n");
+        return 1;
+    }
     r = tc_encode_write_frame(tc);
     if (r > 0) return 0;
     if (r < 0) return r;
