@@ -32,20 +32,21 @@ const char *args_usage = "Usage: interval_transcoding [OPTIONS]...";
 const char *args_description = "";
 
 const char *args_help[] = {
-  "  -h, --help              Print help and exit",
-  "  -V, --version           Print version and exit",
-  "  -i, --input=STRING      Input stream/file URL",
-  "  -o, --output=STRING     Output stream server/file URL",
-  "  -b, --v_bitrate=INT     Output video bitrate, bits per second  (default=`0')",
-  "  -l, --loglevel=INT      Log level (quiet=0, debug=6)  (default=`4')",
-  "      --encode_start=INT  Time point to go from copying to encoding",
-  "      --encode_end=INT    Time point to go back to copying",
+  "  -h, --help                 Print help and exit",
+  "  -V, --version              Print version and exit",
+  "  -i, --input=STRING         Input stream/file URL",
+  "  -o, --output=STRING        Output stream server/file URL",
+  "  -b, --v_bitrate=INT        Output video bitrate, bits per second  \n                               (default=`0')",
+  "  -l, --loglevel=INT         Log level (quiet=0, debug=6)  (default=`4')",
+  "      --encode_start=DOUBLE  Time point to go from copying to encoding",
+  "      --encode_end=DOUBLE    Time point to go back to copying",
     0
 };
 
 typedef enum {ARG_NO
   , ARG_STRING
   , ARG_INT
+  , ARG_DOUBLE
 } cmdline_parser_arg_type;
 
 static
@@ -455,6 +456,9 @@ int update_arg(void *field, char **orig_field,
   case ARG_INT:
     if (val) *((int *)field) = strtol (val, &stop_char, 0);
     break;
+  case ARG_DOUBLE:
+    if (val) *((double *)field) = strtod (val, &stop_char);
+    break;
   case ARG_STRING:
     if (val) {
       string_field = (char **)field;
@@ -470,6 +474,7 @@ int update_arg(void *field, char **orig_field,
   /* check numeric conversion */
   switch(arg_type) {
   case ARG_INT:
+  case ARG_DOUBLE:
     if (val && !(stop_char && *stop_char == '\0')) {
       fprintf(stderr, "%s: invalid numeric value: %s\n", package_name, val);
       return 1; /* failure */
@@ -620,7 +625,7 @@ cmdline_parser_internal (
           
             if (update_arg( (void *)&(args_info->encode_start_arg), 
                  &(args_info->encode_start_orig), &(args_info->encode_start_given),
-                &(local_args_info.encode_start_given), optarg, 0, 0, ARG_INT,
+                &(local_args_info.encode_start_given), optarg, 0, 0, ARG_DOUBLE,
                 check_ambiguity, override, 0, 0,
                 "encode_start", '-',
                 additional_error))
@@ -634,7 +639,7 @@ cmdline_parser_internal (
           
             if (update_arg( (void *)&(args_info->encode_end_arg), 
                  &(args_info->encode_end_orig), &(args_info->encode_end_given),
-                &(local_args_info.encode_end_given), optarg, 0, 0, ARG_INT,
+                &(local_args_info.encode_end_given), optarg, 0, 0, ARG_DOUBLE,
                 check_ambiguity, override, 0, 0,
                 "encode_end", '-',
                 additional_error))

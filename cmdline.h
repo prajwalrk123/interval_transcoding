@@ -51,10 +51,10 @@ struct args
   int loglevel_arg;	/**< @brief Log level (quiet=0, debug=6) (default='4').  */
   char * loglevel_orig;	/**< @brief Log level (quiet=0, debug=6) original value given at command line.  */
   const char *loglevel_help; /**< @brief Log level (quiet=0, debug=6) help description.  */
-  int encode_start_arg;	/**< @brief Time point to go from copying to encoding.  */
+  double encode_start_arg;	/**< @brief Time point to go from copying to encoding.  */
   char * encode_start_orig;	/**< @brief Time point to go from copying to encoding original value given at command line.  */
   const char *encode_start_help; /**< @brief Time point to go from copying to encoding help description.  */
-  int encode_end_arg;	/**< @brief Time point to go back to copying.  */
+  double encode_end_arg;	/**< @brief Time point to go back to copying.  */
   char * encode_end_orig;	/**< @brief Time point to go back to copying original value given at command line.  */
   const char *encode_end_help; /**< @brief Time point to go back to copying help description.  */
   
