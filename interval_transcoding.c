@@ -173,7 +173,7 @@ static int tc_decode_frame(Transcoder *tc) {
         tc->decode_ret = avcodec_decode_video2(tc->avInputVideoDecoderCtx, tc->frame, &tc->got_picture, &tc->read_pkt);
         if (tc->decode_ret < 0) {
             log(WARNING, "decode fail\n");
-            av_free(tc->frame);
+            av_freep(&tc->frame);
         }
         return tc->decode_ret;
 }
@@ -243,33 +243,37 @@ static int tc_encode_write_frame(Transcoder *tc) {
         if (r)
             return r;
     }
-    av_free(tc->frame);
+    av_freep(&tc->frame);
     av_free_packet(&tc->read_pkt);
     return 0;
 }
 
 static int tc_process_frame(Transcoder *tc) {
     int r;
+    double stock = 3.0; // spare seconds of decoding
 
     r = tc_read_frame(tc);
     if (r > 0) return 0;
     if (r < 0) return r;
 
-    if (tc->read_pkt.stream_index == tc->video_ind) {
+    double timestamp = tc->read_pkt.dts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
+    log(DEBUG, "timestamp %f\n", timestamp);
+
+    if (tc->read_pkt.stream_index == tc->video_ind
+            && ((timestamp > tc->args.encode_start_arg - stock)
+                || (timestamp < tc->args.encode_start_arg))
+       ) {
         // start decoding from the beginning,
         // to avoid having errors 'no reference frame'
         tc_decode_frame(tc);
     }
-
-    double timestamp = tc->read_pkt.dts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
-    log(DEBUG, "timestamp %f\n", timestamp);
 
     if (tc->read_pkt.stream_index != tc->video_ind
             || timestamp < tc->args.encode_start_arg
             || timestamp > tc->args.encode_end_arg   ) {
         r = tc_straight_write(tc);
         if (tc->read_pkt.stream_index == tc->video_ind)
-            av_free(tc->frame);
+            av_freep(&tc->frame);
         if (r > 0) return 0;
         if (r < 0) return r;
         return 0;
