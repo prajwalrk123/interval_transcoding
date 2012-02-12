@@ -42,7 +42,6 @@ int tc_encoder_open(Transcoder *tc);
 static int tc_prepare(Transcoder *tc);
 static int tc_processing_loop(Transcoder *tc);
 static int tc_process_frame(Transcoder *tc);
-static int tc_flush_encoder(Transcoder *tc);
 static void tc_destroy(Transcoder *tc);
 
 int main(int argc, char *argv[]) {
@@ -74,12 +73,6 @@ int main(int argc, char *argv[]) {
     r = tc_processing_loop(tc);
     if (r) {
         log(ERROR, "processing fail\n");
-        return 1;
-    }
-
-    r = tc_flush_encoder(tc);
-    if (r) {
-        log(ERROR, "flushing encoder fail\n");
         return 1;
     }
 
@@ -141,11 +134,6 @@ static int tc_processing_loop(Transcoder *tc) {
     }
     log(INFO, "Out of transcoding loop\n");
     return r;
-}
-
-static int tc_flush_encoder(Transcoder *tc) {
-    // TODO
-    return 0;
 }
 
 static int tc_read_frame(Transcoder *tc) {
