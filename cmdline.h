@@ -51,9 +51,12 @@ struct args
   int loglevel_arg;	/**< @brief Log level (quiet=0, debug=6) (default='4').  */
   char * loglevel_orig;	/**< @brief Log level (quiet=0, debug=6) original value given at command line.  */
   const char *loglevel_help; /**< @brief Log level (quiet=0, debug=6) help description.  */
-  int encode_start_arg;	/**< @brief Time point to go from copying to encoding (default='30').  */
+  int encode_start_arg;	/**< @brief Time point to go from copying to encoding.  */
   char * encode_start_orig;	/**< @brief Time point to go from copying to encoding original value given at command line.  */
   const char *encode_start_help; /**< @brief Time point to go from copying to encoding help description.  */
+  int encode_end_arg;	/**< @brief Time point to go back to copying.  */
+  char * encode_end_orig;	/**< @brief Time point to go back to copying original value given at command line.  */
+  const char *encode_end_help; /**< @brief Time point to go back to copying help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -62,6 +65,7 @@ struct args
   unsigned int v_bitrate_given ;	/**< @brief Whether v_bitrate was given.  */
   unsigned int loglevel_given ;	/**< @brief Whether loglevel was given.  */
   unsigned int encode_start_given ;	/**< @brief Whether encode_start was given.  */
+  unsigned int encode_end_given ;	/**< @brief Whether encode_end was given.  */
 
 } ;
 

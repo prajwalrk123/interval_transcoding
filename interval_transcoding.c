@@ -28,7 +28,6 @@ struct transcoder {
     DECLARE_ALIGNED(16, uint8_t, decbuf)[1024 * 1024];
     DECLARE_ALIGNED(16, uint8_t, encbuf)[1024 * 1024];
     int finished;
-    int encode;
 };
 typedef struct transcoder Transcoder;
 
@@ -185,15 +184,14 @@ static int tc_process_frame(Transcoder *tc) {
         frame = avcodec_alloc_frame();
         assert(frame);
         decode_ret = avcodec_decode_video2(tc->avInputVideoDecoderCtx, frame, &got_picture_ptr, &pkt);
-
-        double timestamp = pkt.dts * av_q2d(tc->avInputFmtCtx->streams[pkt.stream_index]->time_base);
-        log(DEBUG, "timestamp %f\n", timestamp);
-        if (timestamp > tc->args.encode_start_arg)
-            tc->encode = 1;
     }
 
-    if ( ! tc->encode
-            || pkt.stream_index != tc->video_ind) {
+    double timestamp = pkt.dts * av_q2d(tc->avInputFmtCtx->streams[pkt.stream_index]->time_base);
+    log(DEBUG, "timestamp %f\n", timestamp);
+
+    if (pkt.stream_index != tc->video_ind
+            || timestamp < tc->args.encode_start_arg
+            || timestamp > tc->args.encode_end_arg   ) {
         log(DEBUG, "straight writing of read frame\n");
         pkt.pts = av_rescale_q(pkt.pts,
                 tc->avInputFmtCtx->streams[pkt.stream_index]->time_base,

@@ -38,7 +38,8 @@ const char *args_help[] = {
   "  -o, --output=STRING     Output stream server/file URL",
   "  -b, --v_bitrate=INT     Output video bitrate, bits per second  (default=`0')",
   "  -l, --loglevel=INT      Log level (quiet=0, debug=6)  (default=`4')",
-  "  -e, --encode_start=INT  Time point to go from copying to encoding  \n                            (default=`30')",
+  "      --encode_start=INT  Time point to go from copying to encoding",
+  "      --encode_end=INT    Time point to go back to copying",
     0
 };
 
@@ -72,6 +73,7 @@ void clear_given (struct args *args_info)
   args_info->v_bitrate_given = 0 ;
   args_info->loglevel_given = 0 ;
   args_info->encode_start_given = 0 ;
+  args_info->encode_end_given = 0 ;
 }
 
 static
@@ -86,8 +88,8 @@ void clear_args (struct args *args_info)
   args_info->v_bitrate_orig = NULL;
   args_info->loglevel_arg = 4;
   args_info->loglevel_orig = NULL;
-  args_info->encode_start_arg = 30;
   args_info->encode_start_orig = NULL;
+  args_info->encode_end_orig = NULL;
   
 }
 
@@ -103,6 +105,7 @@ void init_args_info(struct args *args_info)
   args_info->v_bitrate_help = args_help[4] ;
   args_info->loglevel_help = args_help[5] ;
   args_info->encode_start_help = args_help[6] ;
+  args_info->encode_end_help = args_help[7] ;
   
 }
 
@@ -190,6 +193,7 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->v_bitrate_orig));
   free_string_field (&(args_info->loglevel_orig));
   free_string_field (&(args_info->encode_start_orig));
+  free_string_field (&(args_info->encode_end_orig));
   
   
 
@@ -234,6 +238,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "loglevel", args_info->loglevel_orig, 0);
   if (args_info->encode_start_given)
     write_into_file(outfile, "encode_start", args_info->encode_start_orig, 0);
+  if (args_info->encode_end_given)
+    write_into_file(outfile, "encode_end", args_info->encode_end_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -359,6 +365,18 @@ cmdline_parser_required2 (struct args *args_info, const char *prog_name, const c
   if (! args_info->output_given)
     {
       fprintf (stderr, "%s: '--output' ('-o') option required%s\n", prog_name, (additional_error ? additional_error : ""));
+      error = 1;
+    }
+  
+  if (! args_info->encode_start_given)
+    {
+      fprintf (stderr, "%s: '--encode_start' option required%s\n", prog_name, (additional_error ? additional_error : ""));
+      error = 1;
+    }
+  
+  if (! args_info->encode_end_given)
+    {
+      fprintf (stderr, "%s: '--encode_end' option required%s\n", prog_name, (additional_error ? additional_error : ""));
       error = 1;
     }
   
@@ -524,11 +542,12 @@ cmdline_parser_internal (
         { "output",	1, NULL, 'o' },
         { "v_bitrate",	1, NULL, 'b' },
         { "loglevel",	1, NULL, 'l' },
-        { "encode_start",	1, NULL, 'e' },
+        { "encode_start",	1, NULL, 0 },
+        { "encode_end",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVi:o:b:l:e:", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVi:o:b:l:", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 
@@ -592,20 +611,38 @@ cmdline_parser_internal (
             goto failure;
         
           break;
-        case 'e':	/* Time point to go from copying to encoding.  */
-        
-        
-          if (update_arg( (void *)&(args_info->encode_start_arg), 
-               &(args_info->encode_start_orig), &(args_info->encode_start_given),
-              &(local_args_info.encode_start_given), optarg, 0, "30", ARG_INT,
-              check_ambiguity, override, 0, 0,
-              "encode_start", 'e',
-              additional_error))
-            goto failure;
-        
-          break;
 
         case 0:	/* Long option with no short option */
+          /* Time point to go from copying to encoding.  */
+          if (strcmp (long_options[option_index].name, "encode_start") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->encode_start_arg), 
+                 &(args_info->encode_start_orig), &(args_info->encode_start_given),
+                &(local_args_info.encode_start_given), optarg, 0, 0, ARG_INT,
+                check_ambiguity, override, 0, 0,
+                "encode_start", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* Time point to go back to copying.  */
+          else if (strcmp (long_options[option_index].name, "encode_end") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->encode_end_arg), 
+                 &(args_info->encode_end_orig), &(args_info->encode_end_given),
+                &(local_args_info.encode_end_given), optarg, 0, 0, ARG_INT,
+                check_ambiguity, override, 0, 0,
+                "encode_end", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          
+          break;
         case '?':	/* Invalid option.  */
           /* `getopt_long' already printed an error message.  */
           goto failure;
