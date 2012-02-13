@@ -32,15 +32,16 @@ const char *args_usage = "Usage: interval_transcoding [OPTIONS]...";
 const char *args_description = "";
 
 const char *args_help[] = {
-  "  -h, --help                 Print help and exit",
-  "  -V, --version              Print version and exit",
-  "  -i, --input=STRING         Input stream/file URL",
-  "  -o, --output=STRING        Output stream server/file URL",
-  "  -b, --v_bitrate=INT        Output video bitrate, bits per second  \n                               (default=`0')",
-  "  -l, --loglevel=INT         Log level (quiet=0, debug=6)  (default=`4')",
-  "      --encode_start=DOUBLE  Time point to go from copying to encoding",
-  "      --encode_end=DOUBLE    Time point to go back to copying",
-  "      --filterchain=STRING   avfilter formula  (default=`fifo')",
+  "  -h, --help                   Print help and exit",
+  "  -V, --version                Print version and exit",
+  "  -i, --input=STRING           Input stream/file URL",
+  "  -o, --output=STRING          Output stream server/file URL",
+  "  -b, --v_bitrate=INT          Output video bitrate, bits per second  \n                                 (default=`0')",
+  "  -l, --loglevel=INT           Log level (quiet=0, debug=6)  (default=`4')",
+  "      --encode_start=DOUBLE    Time point to go from copying to encoding",
+  "      --encode_end=DOUBLE      Time point to go back to copying",
+  "      --filterchain=STRING     avfilter formula  (default=`fifo')",
+  "      --decoder_warmup=DOUBLE  Thus earlier input video is decoded  \n                                 (default=`5')",
     0
 };
 
@@ -77,6 +78,7 @@ void clear_given (struct args *args_info)
   args_info->encode_start_given = 0 ;
   args_info->encode_end_given = 0 ;
   args_info->filterchain_given = 0 ;
+  args_info->decoder_warmup_given = 0 ;
 }
 
 static
@@ -95,6 +97,8 @@ void clear_args (struct args *args_info)
   args_info->encode_end_orig = NULL;
   args_info->filterchain_arg = gengetopt_strdup ("fifo");
   args_info->filterchain_orig = NULL;
+  args_info->decoder_warmup_arg = 5;
+  args_info->decoder_warmup_orig = NULL;
   
 }
 
@@ -112,6 +116,7 @@ void init_args_info(struct args *args_info)
   args_info->encode_start_help = args_help[6] ;
   args_info->encode_end_help = args_help[7] ;
   args_info->filterchain_help = args_help[8] ;
+  args_info->decoder_warmup_help = args_help[9] ;
   
 }
 
@@ -202,6 +207,7 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->encode_end_orig));
   free_string_field (&(args_info->filterchain_arg));
   free_string_field (&(args_info->filterchain_orig));
+  free_string_field (&(args_info->decoder_warmup_orig));
   
   
 
@@ -250,6 +256,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "encode_end", args_info->encode_end_orig, 0);
   if (args_info->filterchain_given)
     write_into_file(outfile, "filterchain", args_info->filterchain_orig, 0);
+  if (args_info->decoder_warmup_given)
+    write_into_file(outfile, "decoder_warmup", args_info->decoder_warmup_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -559,6 +567,7 @@ cmdline_parser_internal (
         { "encode_start",	1, NULL, 0 },
         { "encode_end",	1, NULL, 0 },
         { "filterchain",	1, NULL, 0 },
+        { "decoder_warmup",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -666,6 +675,20 @@ cmdline_parser_internal (
                 &(local_args_info.filterchain_given), optarg, 0, "fifo", ARG_STRING,
                 check_ambiguity, override, 0, 0,
                 "filterchain", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* Thus earlier input video is decoded.  */
+          else if (strcmp (long_options[option_index].name, "decoder_warmup") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->decoder_warmup_arg), 
+                 &(args_info->decoder_warmup_orig), &(args_info->decoder_warmup_given),
+                &(local_args_info.decoder_warmup_given), optarg, 0, "5", ARG_DOUBLE,
+                check_ambiguity, override, 0, 0,
+                "decoder_warmup", '-',
                 additional_error))
               goto failure;
           

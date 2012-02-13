@@ -330,7 +330,6 @@ static int tc_filter_encode_write_frame(Transcoder *tc) {
 
 static int tc_process_frame(Transcoder *tc) {
     int r;
-    double stock = 3.0; // spare seconds of decoding
 
     r = tc_read_frame(tc);
     if (r > 0) return 0;
@@ -348,7 +347,7 @@ static int tc_process_frame(Transcoder *tc) {
     }
 
     if (tc->read_pkt.stream_index == tc->video_ind
-            && (timestamp > tc->args.encode_start_arg - stock)
+            && (timestamp > tc->args.encode_start_arg - tc->args.decoder_warmup_arg)
             && !tc->done_up_to_keyframe
        ) {
         // start decoding from the beginning,
