@@ -526,6 +526,7 @@ int tc_output_open(Transcoder *tc) {
 
 int tc_decoder_open(Transcoder *tc) {
     int r;
+    tc->avInputVideoDecoderCtx->thread_count = 1; // multi-threaded h264 decoder seems buggy
     AVCodec *inputDecoder = avcodec_find_decoder(tc->avInputVideoDecoderCtx->codec_id);
     if (!inputDecoder) {
         log(ERROR, "decoder for codec %d not found\n", tc->avInputVideoDecoderCtx->codec_id);
