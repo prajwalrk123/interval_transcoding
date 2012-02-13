@@ -9,7 +9,7 @@ To compile application, run
 ./configure # probably you want to use such options as --with-libav-{include,lib}-path
  # also, to use with ffmpeg.org libs, give --with-ffmpeg, otherwise libav.org libs are assumed
 make
-./interval_transcoding -i http://dl.dropbox.com/u/43104344/interval_transcoding.mp4 -o out.mov --encode_start 58 --v_bitrate 100000 --loglevel 6
+INFILE=http://dl.dropbox.com/u/43104344/interval_transcoding.mp4 FILTER_START=5 FILTER_END=5.3 TEXT='ZAEBALSA YA' COLOR=red X=0 Y=0 FONTFILE=/usr/share/fonts/TrueType/verdana.ttf FONTSIZE=30 ./assemble.sh > ~/result.mp4
 
 DEVELOPMENT NOTES
 Execute this when you add some command-line options
