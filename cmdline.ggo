@@ -8,3 +8,4 @@ option "v_bitrate"            b "Output video bitrate, bits per second" int defa
 option "loglevel"             l "Log level (quiet=0, debug=6)" int default="4" optional
 option "encode_start"         - "Time point to go from copying to encoding" double required
 option "encode_end"           - "Time point to go back to copying" double required
+option "filterchain"          - "avfilter formula" string default="fifo" optional

@@ -57,6 +57,9 @@ struct args
   double encode_end_arg;	/**< @brief Time point to go back to copying.  */
   char * encode_end_orig;	/**< @brief Time point to go back to copying original value given at command line.  */
   const char *encode_end_help; /**< @brief Time point to go back to copying help description.  */
+  char * filterchain_arg;	/**< @brief avfilter formula (default='fifo').  */
+  char * filterchain_orig;	/**< @brief avfilter formula original value given at command line.  */
+  const char *filterchain_help; /**< @brief avfilter formula help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -66,6 +69,7 @@ struct args
   unsigned int loglevel_given ;	/**< @brief Whether loglevel was given.  */
   unsigned int encode_start_given ;	/**< @brief Whether encode_start was given.  */
   unsigned int encode_end_given ;	/**< @brief Whether encode_end was given.  */
+  unsigned int filterchain_given ;	/**< @brief Whether filterchain was given.  */
 
 } ;
 

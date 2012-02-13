@@ -40,6 +40,7 @@ const char *args_help[] = {
   "  -l, --loglevel=INT         Log level (quiet=0, debug=6)  (default=`4')",
   "      --encode_start=DOUBLE  Time point to go from copying to encoding",
   "      --encode_end=DOUBLE    Time point to go back to copying",
+  "      --filterchain=STRING   avfilter formula  (default=`fifo')",
     0
 };
 
@@ -75,6 +76,7 @@ void clear_given (struct args *args_info)
   args_info->loglevel_given = 0 ;
   args_info->encode_start_given = 0 ;
   args_info->encode_end_given = 0 ;
+  args_info->filterchain_given = 0 ;
 }
 
 static
@@ -91,6 +93,8 @@ void clear_args (struct args *args_info)
   args_info->loglevel_orig = NULL;
   args_info->encode_start_orig = NULL;
   args_info->encode_end_orig = NULL;
+  args_info->filterchain_arg = gengetopt_strdup ("fifo");
+  args_info->filterchain_orig = NULL;
   
 }
 
@@ -107,6 +111,7 @@ void init_args_info(struct args *args_info)
   args_info->loglevel_help = args_help[5] ;
   args_info->encode_start_help = args_help[6] ;
   args_info->encode_end_help = args_help[7] ;
+  args_info->filterchain_help = args_help[8] ;
   
 }
 
@@ -195,6 +200,8 @@ cmdline_parser_release (struct args *args_info)
   free_string_field (&(args_info->loglevel_orig));
   free_string_field (&(args_info->encode_start_orig));
   free_string_field (&(args_info->encode_end_orig));
+  free_string_field (&(args_info->filterchain_arg));
+  free_string_field (&(args_info->filterchain_orig));
   
   
 
@@ -241,6 +248,8 @@ cmdline_parser_dump(FILE *outfile, struct args *args_info)
     write_into_file(outfile, "encode_start", args_info->encode_start_orig, 0);
   if (args_info->encode_end_given)
     write_into_file(outfile, "encode_end", args_info->encode_end_orig, 0);
+  if (args_info->filterchain_given)
+    write_into_file(outfile, "filterchain", args_info->filterchain_orig, 0);
   
 
   i = EXIT_SUCCESS;
@@ -549,6 +558,7 @@ cmdline_parser_internal (
         { "loglevel",	1, NULL, 'l' },
         { "encode_start",	1, NULL, 0 },
         { "encode_end",	1, NULL, 0 },
+        { "filterchain",	1, NULL, 0 },
         { 0,  0, 0, 0 }
       };
 
@@ -642,6 +652,20 @@ cmdline_parser_internal (
                 &(local_args_info.encode_end_given), optarg, 0, 0, ARG_DOUBLE,
                 check_ambiguity, override, 0, 0,
                 "encode_end", '-',
+                additional_error))
+              goto failure;
+          
+          }
+          /* avfilter formula.  */
+          else if (strcmp (long_options[option_index].name, "filterchain") == 0)
+          {
+          
+          
+            if (update_arg( (void *)&(args_info->filterchain_arg), 
+                 &(args_info->filterchain_orig), &(args_info->filterchain_given),
+                &(local_args_info.filterchain_given), optarg, 0, "fifo", ARG_STRING,
+                check_ambiguity, override, 0, 0,
+                "filterchain", '-',
                 additional_error))
               goto failure;
           

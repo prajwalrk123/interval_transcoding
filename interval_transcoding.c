@@ -11,9 +11,39 @@
 #include <libavutil/mathematics.h>
 #include <libavutil/avutil.h>
 #include <libavutil/opt.h>
+
+#include <libavfilter/avfilter.h>
+#include <libavfilter/avfiltergraph.h>
+#include <libavfilter/vsrc_buffer.h>
+#ifndef LIBAV
+#include <libavfilter/avcodec.h>
+#include <libavfilter/buffersink.h>
+#endif
+
 #include "cmdline.h"
 
 #include "dump.c"
+
+#ifdef LIBAV
+int avfilter_fill_frame_from_video_buffer_ref(AVFrame *frame,
+        const AVFilterBufferRef *picref)
+{
+    if (!picref || !picref->video || !frame)
+        return AVERROR(EINVAL);
+
+    memcpy(frame->data,     picref->data,     sizeof(frame->data));
+    memcpy(frame->linesize, picref->linesize, sizeof(frame->linesize));
+    //frame->pkt_pos          = picref->pos;
+    frame->interlaced_frame = picref->video->interlaced;
+    frame->top_field_first  = picref->video->top_field_first;
+    frame->key_frame        = picref->video->key_frame;
+    frame->pict_type        = picref->video->pict_type;
+    //frame->sample_aspect_ratio = picref->video->sample_aspect_ratio;
+
+    return 0;
+}
+#endif
+
 #define log(level, fmt_n_args...) av_log(NULL, AV_LOG_##level, fmt_n_args)
 
 // rework places with these defines when need support of other containers
@@ -25,6 +55,9 @@ struct transcoder {
     AVFormatContext *avOutputFmtCtx;
     AVCodecContext *avInputVideoDecoderCtx;
     AVCodecContext *avOutputVideoEncoderCtx;
+    AVFilterContext *avFilterSinkCtx;
+    AVFilterContext *avFilterSrcCtx;
+    AVFilterGraph *avFilterGraph;
     AVPacket read_pkt;
     int decode_ret;
     int got_picture;
@@ -38,6 +71,7 @@ typedef struct transcoder Transcoder;
 
 int tc_input_open(Transcoder *tc);
 int tc_output_open(Transcoder *tc);
+int tc_filters_open(Transcoder *tc);
 int tc_decoder_open(Transcoder *tc);
 int tc_encoder_open(Transcoder *tc);
 static int tc_prepare(Transcoder *tc);
@@ -49,6 +83,7 @@ int main(int argc, char *argv[]) {
     int r;
     /* Global init */
     av_register_all();
+    avfilter_register_all();
     /* END Global init */
 
     Transcoder *tc = calloc(1, sizeof(*tc));
@@ -93,6 +128,10 @@ static int tc_prepare(Transcoder *tc) {
         return r;
 
     r = tc_output_open(tc);
+    if (r)
+        return r;
+
+    r = tc_filters_open(tc);
     if (r)
         return r;
 
@@ -212,6 +251,10 @@ static int tc_encode_write_frame(Transcoder *tc) {
     int encbuf_size = sizeof(tc->encbuf);
     log(DEBUG, "gonna encode\n");
 
+    tc->frame->pts = av_rescale_q(tc->frame->pts,
+            tc->avInputVideoDecoderCtx->time_base,
+            tc->avOutputVideoEncoderCtx->time_base);
+    log(DEBUG, "encoding with pts %"PRId64"\n", tc->frame->pts);
     tc->frame->pict_type = 0;
     r = avcodec_encode_video(tc->avOutputVideoEncoderCtx, tc->encbuf, encbuf_size, tc->frame);
     if (r < 0) {
@@ -241,6 +284,47 @@ static int tc_encode_write_frame(Transcoder *tc) {
     }
     av_freep(&tc->frame);
     av_free_packet(&tc->read_pkt);
+    return 0;
+}
+
+static int tc_filter_encode_write_frame(Transcoder *tc) {
+    int r;
+
+    /* push the decoded frame into the filtergraph */
+#ifdef LIBAV
+    r = av_vsrc_buffer_add_frame(tc->avFilterSrcCtx, tc->frame, tc->frame->pts, (AVRational){1, 1});
+#else
+    r = av_vsrc_buffer_add_frame(tc->avFilterSrcCtx, tc->frame, 0);
+#endif
+    av_freep(&tc->frame);
+    if (r) {
+        log(ERROR, "pushing frame into filtergraph fail\n");
+        return 1;
+    }
+    /* pull filtered pictures from the filtergraph */
+    while (avfilter_poll_frame(tc->avFilterSinkCtx->inputs[0])) {
+        AVFilterBufferRef *picref = NULL;
+        r = avfilter_request_frame(tc->avFilterSinkCtx->inputs[0]);
+        if (r)
+            break;
+        picref = tc->avFilterSinkCtx->inputs[0]->cur_buf;
+        assert(picref);
+
+        AVFrame *picture = avcodec_alloc_frame();
+        assert(picture);
+        r = avfilter_fill_frame_from_video_buffer_ref(picture, picref);
+        if (r) {
+            log(ERROR, "getting frame from filters fail\n");
+            return r;
+        }
+        picture->pts = picref->pts;
+        picture->pict_type = 0; /* = AV_PICTURE_TYPE_NONE; let codec choose */
+        tc->frame = picture;
+        r = tc_encode_write_frame(tc);
+        if (r > 0) return 0;
+        if (r < 0) return r; 
+        avfilter_unref_buffer(picref);
+    }
     return 0;
 }
 
@@ -288,6 +372,15 @@ static int tc_process_frame(Transcoder *tc) {
         log(DEBUG, "should encode, but got no picture\n");
         return 1;
     }
+
+    if ((timestamp > tc->args.encode_start_arg)
+            && (timestamp > tc->args.encode_end_arg)) {
+        r = tc_filter_encode_write_frame(tc);
+        if (r > 0) return 0;
+        if (r < 0) return r;
+        return 0;
+    }
+
     r = tc_encode_write_frame(tc);
     if (r > 0) return 0;
     if (r < 0) return r;
@@ -462,3 +555,57 @@ int tc_encoder_open(Transcoder *tc) {
     return 0;
 }
 
+int tc_filters_open(Transcoder *tc) {
+    int r;
+    AVFilter *buffersrc  = avfilter_get_by_name("buffer");
+    AVFilter *buffersink = avfilter_get_by_name("nullsink");
+    AVFilterInOut *outputs = av_mallocz(sizeof(AVFilterInOut));
+    AVFilterInOut *inputs  = av_mallocz(sizeof(AVFilterInOut));
+    tc->avFilterGraph = avfilter_graph_alloc();
+
+    char *filter_args;
+    /* buffer video source: the decoded frames from the decoder will be inserted here. */
+    asprintf(&filter_args, "%d:%d:%d:%d:%d:%d:%d",
+            tc->avInputVideoDecoderCtx->width, tc->avInputVideoDecoderCtx->height,
+            tc->avInputVideoDecoderCtx->pix_fmt,
+            tc->avInputVideoDecoderCtx->time_base.num, tc->avInputVideoDecoderCtx->time_base.den,
+            tc->avInputVideoDecoderCtx->sample_aspect_ratio.num, tc->avInputVideoDecoderCtx->sample_aspect_ratio.den);
+    r = avfilter_graph_create_filter(&tc->avFilterSrcCtx, buffersrc, "in",
+            filter_args, NULL, tc->avFilterGraph);
+    if (r < 0) {
+        log(ERROR, "Cannot create buffer source\n");
+        return r;
+    }
+
+    /* buffer video sink: to terminate the filter chain. */
+    enum PixelFormat pix_fmts[] = { PIX_FMT_YUV420P, PIX_FMT_NONE };
+    r = avfilter_graph_create_filter(&tc->avFilterSinkCtx, buffersink, "out",
+            NULL, pix_fmts, tc->avFilterGraph);
+    if (r < 0) {
+        log(ERROR, "Cannot create buffer sink\n");
+        return r;
+    }
+
+    /* Endpoints for the filter graph. */
+    outputs->name       = av_strdup("in");
+    outputs->filter_ctx = tc->avFilterSrcCtx;
+    outputs->pad_idx    = 0;
+    outputs->next       = NULL;
+
+    inputs->name       = av_strdup("out");
+    inputs->filter_ctx = tc->avFilterSinkCtx;
+    inputs->pad_idx    = 0;
+    inputs->next       = NULL;
+
+    log(INFO, "filterchain: '%s'\n", tc->args.filterchain_arg);
+#ifdef LIBAV
+    if ((r = avfilter_graph_parse(tc->avFilterGraph, tc->args.filterchain_arg, inputs, outputs, NULL)) < 0)
+#else
+    if ((r = avfilter_graph_parse(tc->avFilterGraph, tc->args.filterchain_arg, &inputs, &outputs, NULL)) < 0)
+#endif
+        return r;
+    if ((r = avfilter_graph_config(tc->avFilterGraph, NULL)) < 0)
+        return r;
+
+    return 0;
+}
