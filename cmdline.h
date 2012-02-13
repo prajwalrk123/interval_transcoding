@@ -51,12 +51,12 @@ struct args
   int loglevel_arg;	/**< @brief Log level (quiet=0, debug=6) (default='4').  */
   char * loglevel_orig;	/**< @brief Log level (quiet=0, debug=6) original value given at command line.  */
   const char *loglevel_help; /**< @brief Log level (quiet=0, debug=6) help description.  */
-  double encode_start_arg;	/**< @brief Time point to go from copying to encoding.  */
-  char * encode_start_orig;	/**< @brief Time point to go from copying to encoding original value given at command line.  */
-  const char *encode_start_help; /**< @brief Time point to go from copying to encoding help description.  */
-  double encode_end_arg;	/**< @brief Time point to go back to copying.  */
-  char * encode_end_orig;	/**< @brief Time point to go back to copying original value given at command line.  */
-  const char *encode_end_help; /**< @brief Time point to go back to copying help description.  */
+  double filter_start_arg;	/**< @brief Time point to go from copying to filtering and encoding.  */
+  char * filter_start_orig;	/**< @brief Time point to go from copying to filtering and encoding original value given at command line.  */
+  const char *filter_start_help; /**< @brief Time point to go from copying to filtering and encoding help description.  */
+  double filter_end_arg;	/**< @brief Time point to go back to copying.  */
+  char * filter_end_orig;	/**< @brief Time point to go back to copying original value given at command line.  */
+  const char *filter_end_help; /**< @brief Time point to go back to copying help description.  */
   char * filterchain_arg;	/**< @brief avfilter formula (default='fifo').  */
   char * filterchain_orig;	/**< @brief avfilter formula original value given at command line.  */
   const char *filterchain_help; /**< @brief avfilter formula help description.  */
@@ -70,8 +70,8 @@ struct args
   unsigned int output_given ;	/**< @brief Whether output was given.  */
   unsigned int v_bitrate_given ;	/**< @brief Whether v_bitrate was given.  */
   unsigned int loglevel_given ;	/**< @brief Whether loglevel was given.  */
-  unsigned int encode_start_given ;	/**< @brief Whether encode_start was given.  */
-  unsigned int encode_end_given ;	/**< @brief Whether encode_end was given.  */
+  unsigned int filter_start_given ;	/**< @brief Whether filter_start was given.  */
+  unsigned int filter_end_given ;	/**< @brief Whether filter_end was given.  */
   unsigned int filterchain_given ;	/**< @brief Whether filterchain was given.  */
   unsigned int decoder_warmup_given ;	/**< @brief Whether decoder_warmup was given.  */
 

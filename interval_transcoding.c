@@ -339,7 +339,7 @@ static int tc_process_frame(Transcoder *tc) {
     double timestamp = tc->read_pkt.dts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
     log(DEBUG, "timestamp %f\n", timestamp);
 
-    if ((timestamp > tc->args.encode_end_arg)
+    if ((timestamp > tc->args.filter_end_arg)
             && (tc->read_pkt.stream_index == tc->video_ind)
             && (tc->read_pkt.flags & AV_PKT_FLAG_KEY)) {
         log(DEBUG, "done_up_to_keyframe\n");
@@ -347,7 +347,7 @@ static int tc_process_frame(Transcoder *tc) {
     }
 
     if (tc->read_pkt.stream_index == tc->video_ind
-            && (timestamp > tc->args.encode_start_arg - tc->args.decoder_warmup_arg)
+            && (timestamp > tc->args.filter_start_arg - tc->args.decoder_warmup_arg)
             && !tc->done_up_to_keyframe
        ) {
         // start decoding from the beginning,
@@ -356,7 +356,7 @@ static int tc_process_frame(Transcoder *tc) {
     }
 
     if (tc->read_pkt.stream_index != tc->video_ind
-            || timestamp < tc->args.encode_start_arg
+            || timestamp < tc->args.filter_start_arg
             || tc->done_up_to_keyframe) {
         r = tc_straight_write(tc);
         if (tc->read_pkt.stream_index == tc->video_ind)
@@ -372,8 +372,8 @@ static int tc_process_frame(Transcoder *tc) {
         return 1;
     }
 
-    if ((timestamp > tc->args.encode_start_arg)
-            && (timestamp > tc->args.encode_end_arg)) {
+    if ((timestamp > tc->args.filter_start_arg)
+            && (timestamp > tc->args.filter_end_arg)) {
         r = tc_filter_encode_write_frame(tc);
         if (r > 0) return 0;
         if (r < 0) return r;
