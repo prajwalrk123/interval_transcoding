@@ -335,8 +335,8 @@ static int tc_process_frame(Transcoder *tc) {
     if (r > 0) return 0;
     if (r < 0) return r;
 
-
-    double timestamp = tc->read_pkt.pts * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
+    double timestamp = (tc->read_pkt.dts - tc->avInputFmtCtx->streams[tc->video_ind]->start_time)
+        * av_q2d(tc->avInputFmtCtx->streams[tc->read_pkt.stream_index]->time_base);
     log(DEBUG, "timestamp %f\n", timestamp);
 
     if ((timestamp > tc->args.filter_end_arg)
