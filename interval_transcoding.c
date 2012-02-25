@@ -373,7 +373,7 @@ static int tc_process_frame(Transcoder *tc) {
     }
 
     if ((timestamp > tc->args.filter_start_arg)
-            && (timestamp > tc->args.filter_end_arg)) {
+            && (timestamp <= tc->args.filter_end_arg)) {
         r = tc_filter_encode_write_frame(tc);
         if (r > 0) return 0;
         if (r < 0) return r;
